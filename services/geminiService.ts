@@ -81,8 +81,8 @@ export const fetchTafsir = async (
     
     Instruksi:
     1. Jelaskan ayat ini berdasarkan perspektif dan gaya bahasa dari ${source}.
-    2. Wajib mencantumkan nama kitab/sumber tafsir ini (${source}) di awal atau di dalam teks penjelasan agar pembaca mengetahui rujukannya dengan jelas.
-    3. Jika sumber spesifik tidak memiliki komentar langsung untuk ayat ini, sintetiskan pandangan umum dari mazhab pemikiran yang diwakili oleh sumber tersebut.
+    2. PENTING: Anda WAJIB mencantumkan nama kitab atau sumber tafsir (${source}) secara eksplisit di dalam teks penjelasan. Contoh: "Menurut Tafsir Ibn Kathir...", atau "Dalam pandangan Buya Hamka...".
+    3. Jika sumber spesifik tidak memiliki komentar langsung untuk ayat ini, sintetiskan pandangan umum dari mazhab pemikiran yang diwakili oleh sumber tersebut, namun tetap sebutkan bahwa ini adalah pandangan berdasarkan manhaj ${source}.
     
     Bahasa: Indonesia.
     Format output: JSON.
@@ -140,7 +140,7 @@ export const generateThematicTafsir = async (
     1. Pilih 3-5 ayat paling relevan dari Al-Qur'an yang membahas tema ini.
     2. Jelaskan kaitan ayat tersebut dengan tema.
     3. Buat sintesis tafsir yang menghubungkan ayat-ayat tersebut menjadi satu pemahaman utuh berdasarkan ${source}.
-    4. Dalam teks penjelasan (explanation), sebutkan secara eksplisit bahwa kajian ini merujuk pada pandangan ${source}.
+    4. PENTING: Dalam teks penjelasan (explanation), Anda WAJIB menyebutkan secara eksplisit bahwa kajian ini merujuk pada pandangan atau kitab ${source}. Jangan lupakan atribusi ini.
     5. Bahasa: Indonesia yang akademis namun mudah dipahami untuk ceramah.
 
     Format JSON:

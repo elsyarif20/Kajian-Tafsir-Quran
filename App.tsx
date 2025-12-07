@@ -1,13 +1,16 @@
+
 import React, { useState } from 'react';
 import { ALL_SURAHS } from './constants';
 import { SurahCard } from './components/SurahCard';
 import { Reader } from './components/Reader';
 import { TafsirPanel } from './components/TafsirPanel';
 import { ThematicTafsir } from './components/ThematicTafsir';
+import { TahlilView } from './components/TahlilView';
+import { RiyadhushShalihinView } from './components/RiyadhushShalihinView';
 import { SurahMeta, Verse } from './types';
-import { Search, BookOpen, LayoutGrid, LibraryBig } from 'lucide-react';
+import { Search, BookOpen, LayoutGrid, LibraryBig, ScrollText, Book } from 'lucide-react';
 
-type AppMode = 'surah' | 'theme';
+type AppMode = 'surah' | 'theme' | 'tahlil' | 'riyadhush';
 
 export default function App() {
   const [mode, setMode] = useState<AppMode>('surah');
@@ -27,6 +30,38 @@ export default function App() {
   const handleOpenTafsir = (verse: Verse, surahName: string) => {
     setSelectedVerse(verse);
     setIsTafsirOpen(true);
+  };
+
+  const renderContent = () => {
+    switch (mode) {
+      case 'theme':
+        return <ThematicTafsir />;
+      case 'tahlil':
+        return <TahlilView />;
+      case 'riyadhush':
+        return <RiyadhushShalihinView />;
+      case 'surah':
+      default:
+        return (
+          <main className="max-w-4xl mx-auto px-4 -mt-10 pb-20 relative z-20 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredSurahs.map((surah) => (
+                <SurahCard 
+                  key={surah.number} 
+                  surah={surah} 
+                  onClick={setSelectedSurah} 
+                />
+              ))}
+            </div>
+            
+            {filteredSurahs.length === 0 && (
+              <div className="text-center py-20 text-slate-400">
+                <p>Tidak ada surat yang cocok dengan pencarian Anda.</p>
+              </div>
+            )}
+          </main>
+        );
+    }
   };
 
   return (
@@ -52,30 +87,41 @@ export default function App() {
                 {/* App Title */}
                 <div className="flex items-center justify-between mb-8">
                   <div>
-                    <h1 className="text-3xl md:text-5xl font-bold font-arabic mb-3">Kajian Tafsir Al-Qur'an</h1>
+                    <h1 className="text-3xl md:text-5xl font-bold font-arabic mb-3">Tafsir Al-Qur'an & Riyadhus Shalihin</h1>
                     <p className="text-white font-bold text-lg md:text-xl mb-2 tracking-wide opacity-95">
                       Developed @2025 by Liyas Syarifudin, M.Pd.
                     </p>
-                    <p className="text-emerald-100 text-sm md:text-base font-light">Eksplorasi makna Al-Quran dengan Kecerdasan Buatan (AI)</p>
+                    <p className="text-emerald-100 text-sm md:text-base font-light">Eksplorasi makna Al-Quran & Hadits dengan Kecerdasan Buatan (AI)</p>
                   </div>
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="flex p-1 bg-emerald-700/50 backdrop-blur-sm rounded-xl mb-6 w-full md:w-fit">
+                <div className="flex flex-col md:flex-row p-1 bg-emerald-700/50 backdrop-blur-sm rounded-xl mb-6 w-full gap-1 md:gap-0 overflow-x-auto">
                   <button 
                     onClick={() => setMode('surah')}
-                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       mode === 'surah' 
                         ? 'bg-white text-emerald-700 shadow-sm' 
                         : 'text-emerald-100 hover:bg-emerald-600/50'
                     }`}
                   >
                     <LayoutGrid size={18} />
-                    <span>Indeks Surat</span>
+                    <span>Al-Qur'an</span>
+                  </button>
+                  <button 
+                    onClick={() => setMode('riyadhush')}
+                    className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      mode === 'riyadhush' 
+                        ? 'bg-white text-emerald-700 shadow-sm' 
+                        : 'text-emerald-100 hover:bg-emerald-600/50'
+                    }`}
+                  >
+                    <Book size={18} />
+                    <span>Riyadhus Shalihin</span>
                   </button>
                   <button 
                     onClick={() => setMode('theme')}
-                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex-1 min-w-[130px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       mode === 'theme' 
                         ? 'bg-white text-emerald-700 shadow-sm' 
                         : 'text-emerald-100 hover:bg-emerald-600/50'
@@ -83,6 +129,17 @@ export default function App() {
                   >
                     <LibraryBig size={18} />
                     <span>Tafsir Tematik</span>
+                  </button>
+                  <button 
+                    onClick={() => setMode('tahlil')}
+                    className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
+                      mode === 'tahlil' 
+                        ? 'bg-white text-emerald-700 shadow-sm' 
+                        : 'text-emerald-100 hover:bg-emerald-600/50'
+                    }`}
+                  >
+                    <ScrollText size={18} />
+                    <span>Tahlil NU</span>
                   </button>
                 </div>
 
@@ -103,27 +160,7 @@ export default function App() {
             </header>
 
             {/* Main Content */}
-            {mode === 'surah' ? (
-              <main className="max-w-4xl mx-auto px-4 -mt-10 pb-20 relative z-20 animate-in fade-in duration-500">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredSurahs.map((surah) => (
-                    <SurahCard 
-                      key={surah.number} 
-                      surah={surah} 
-                      onClick={setSelectedSurah} 
-                    />
-                  ))}
-                </div>
-                
-                {filteredSurahs.length === 0 && (
-                  <div className="text-center py-20 text-slate-400">
-                    <p>Tidak ada surat yang cocok dengan pencarian Anda.</p>
-                  </div>
-                )}
-              </main>
-            ) : (
-              <ThematicTafsir />
-            )}
+            {renderContent()}
           </>
         )}
       </div>
@@ -132,7 +169,7 @@ export default function App() {
       <footer className="py-6 bg-slate-100 border-t border-slate-200 mt-auto">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <p className="text-slate-400 text-xs">
-            © 2025 Kajian Tafsir Al-Qur'an AI
+            © 2025 Kajian Tafsir Al-Qur'an & Hadits AI
           </p>
         </div>
       </footer>

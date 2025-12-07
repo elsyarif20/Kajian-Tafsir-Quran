@@ -1,3 +1,4 @@
+
 export interface SurahMeta {
   number: number;
   name: string;
@@ -49,4 +50,41 @@ export interface ThematicResult {
   explanation: string;
   conclusion: string;
   source: string;
+}
+
+export interface TahlilItem {
+  id: number;
+  title: string;
+  arabic: string;
+  translation: string;
+  note?: string; // Instructions like "Dibaca 3x"
+}
+
+export interface TahlilData {
+  title: string;
+  source: string;
+  items: TahlilItem[];
+  closingDua?: {
+    title: string;
+    arabic: string;
+    translation: string;
+  };
+}
+
+// Riyadhush Shalihin Types
+export interface Hadith {
+  id: number;
+  number: number; // Global number in the book
+  narrator: string;
+  arabic: string;
+  translation: string;
+  faidah?: string[]; // Key lessons
+}
+
+export interface BookChapter {
+  id: number;
+  title: string;
+  arabicTitle?: string;
+  description: string;
+  hadiths: Hadith[];
 }
