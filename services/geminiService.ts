@@ -79,7 +79,11 @@ export const fetchTafsir = async (
     
     Sumber Tafsir yang diminta: ${source}.
     
-    Jika sumber spesifik tidak memiliki komentar langsung untuk ayat ini, sintetiskan pandangan umum dari mazhab pemikiran yang diwakili oleh sumber tersebut.
+    Instruksi:
+    1. Jelaskan ayat ini berdasarkan perspektif dan gaya bahasa dari ${source}.
+    2. Wajib mencantumkan nama kitab/sumber tafsir ini (${source}) di awal atau di dalam teks penjelasan agar pembaca mengetahui rujukannya dengan jelas.
+    3. Jika sumber spesifik tidak memiliki komentar langsung untuk ayat ini, sintetiskan pandangan umum dari mazhab pemikiran yang diwakili oleh sumber tersebut.
+    
     Bahasa: Indonesia.
     Format output: JSON.
   `;
@@ -93,7 +97,7 @@ export const fetchTafsir = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            text: { type: Type.STRING, description: "Detailed comprehensive explanation (Tafsir)" },
+            text: { type: Type.STRING, description: "Detailed comprehensive explanation (Tafsir) explicitly referencing the source" },
             keyPoints: { 
               type: Type.ARRAY, 
               items: { type: Type.STRING },
@@ -135,14 +139,15 @@ export const generateThematicTafsir = async (
     Instruksi:
     1. Pilih 3-5 ayat paling relevan dari Al-Qur'an yang membahas tema ini.
     2. Jelaskan kaitan ayat tersebut dengan tema.
-    3. Buat sintesis tafsir yang menghubungkan ayat-ayat tersebut menjadi satu pemahaman utuh.
-    4. Bahasa: Indonesia yang akademis namun mudah dipahami untuk ceramah.
+    3. Buat sintesis tafsir yang menghubungkan ayat-ayat tersebut menjadi satu pemahaman utuh berdasarkan ${source}.
+    4. Dalam teks penjelasan (explanation), sebutkan secara eksplisit bahwa kajian ini merujuk pada pandangan ${source}.
+    5. Bahasa: Indonesia yang akademis namun mudah dipahami untuk ceramah.
 
     Format JSON:
     - theme: Judul tema
     - introduction: Pengantar singkat tentang tema ini dalam konteks Al-Qur'an.
     - verses: Array berisi ayat-ayat relevan (surahName, verseNumber, text (Arabic), translation, relevance).
-    - explanation: Penjelasan tafsir mendalam (paragraf panjang).
+    - explanation: Penjelasan tafsir mendalam (paragraf panjang) yang menyebutkan sumber.
     - conclusion: Kesimpulan utama atau pesan moral.
   `;
 
