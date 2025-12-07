@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { SurahMeta, SurahData, Verse } from '../types';
-import { fetchSurahContent } from '../services/geminiService';
-import { ArrowLeft, Loader2, BookOpenCheck, Type, Book } from 'lucide-react';
+import { getSurahDetail } from '../services/quranApiService'; // Switched to API Service
+import { ArrowLeft, Loader2, BookOpenCheck, Type, Book, Wifi, WifiOff } from 'lucide-react';
 
 interface ReaderProps {
   surah: SurahMeta;
@@ -14,6 +15,7 @@ export const Reader: React.FC<ReaderProps> = ({ surah, onBack, onSelectVerse }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTranslation, setShowTranslation] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -21,11 +23,16 @@ export const Reader: React.FC<ReaderProps> = ({ surah, onBack, onSelectVerse }) 
       setLoading(true);
       setError(null);
       try {
-        // In a real app, we would cache this response
-        const result = await fetchSurahContent(surah.number, surah.name, surah.verseCount);
+        // Fetch from API (or Cache)
+        const result = await getSurahDetail(surah.number);
+        
+        // Check if we are serving from cache (mock check, logic can be improved)
+        const fromCache = !navigator.onLine || !!localStorage.getItem(`quran_surah_${surah.number}`);
+        setIsOffline(fromCache);
+
         if (isMounted) setData(result);
       } catch (err) {
-        if (isMounted) setError("Gagal memuat surat. Silakan coba lagi.");
+        if (isMounted) setError("Gagal memuat surat. Pastikan koneksi internet lancar atau data sudah diunduh.");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -39,16 +46,18 @@ export const Reader: React.FC<ReaderProps> = ({ surah, onBack, onSelectVerse }) 
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-emerald-600">
         <Loader2 className="animate-spin mb-4" size={48} />
         <p className="animate-pulse font-medium">Memuat Surat {surah.name}...</p>
-        <p className="text-xs text-slate-400 mt-2">Mengambil data ayat dari sumber terpercaya...</p>
+        <p className="text-xs text-slate-400 mt-2">Mengambil data lengkap dari server...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center text-red-500">
-        <p className="text-lg font-semibold mb-4">{error}</p>
-        <button onClick={onBack} className="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300 text-slate-700">
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-red-500 text-center px-4">
+        <WifiOff size={48} className="mb-4 text-slate-300" />
+        <p className="text-lg font-semibold mb-2">{error}</p>
+        <p className="text-sm text-slate-500 mb-6">Coba periksa koneksi internet Anda.</p>
+        <button onClick={onBack} className="px-6 py-2 bg-slate-200 rounded-full hover:bg-slate-300 text-slate-700 font-medium transition-colors">
           Kembali
         </button>
       </div>
@@ -68,7 +77,10 @@ export const Reader: React.FC<ReaderProps> = ({ surah, onBack, onSelectVerse }) 
           </button>
           
           <div className="text-center flex-1">
-            <h1 className="text-lg md:text-xl font-bold text-slate-800">{surah.name}</h1>
+            <div className="flex items-center justify-center gap-2">
+              <h1 className="text-lg md:text-xl font-bold text-slate-800">{surah.name}</h1>
+              {isOffline && <WifiOff size={14} className="text-slate-400" title="Mode Offline" />}
+            </div>
             <p className="text-xs text-slate-500">{surah.meaning} • {surah.verseCount} Ayat</p>
           </div>
 

@@ -1,65 +1,67 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { SurahData, TafsirResult, TafsirSource, ThematicResult } from "../types";
+import { TafsirResult, TafsirSource, ThematicResult } from "../types";
 
 const apiKey = process.env.API_KEY || '';
 const ai = new GoogleGenAI({ apiKey });
 
-export const fetchSurahContent = async (surahNumber: number, surahName: string, verseCount: number): Promise<SurahData> => {
-  if (!apiKey) throw new Error("API Key is missing");
+// Helper to handle Quota limits with Retry logic
+async function generateContentWithRetry(model: string, contents: any, config: any) {
+  let retries = 0;
+  const maxRetries = 3; // Increased to ensure we can handle at least one long wait
 
-  // We request structured data to ensure valid rendering
-  const model = "gemini-2.5-flash";
-  
-  const prompt = `
-    Provide the full Arabic text and Indonesian translation for Surah ${surahNumber} (${surahName}).
-    It has approximately ${verseCount} verses.
-    Ensure strict JSON format.
-  `;
+  while (true) {
+    try {
+      return await ai.models.generateContent({
+        model,
+        contents,
+        config
+      });
+    } catch (error: any) {
+      const isQuotaError = error.code === 429 || 
+                           error.status === "RESOURCE_EXHAUSTED" || 
+                           (error.message && error.message.toLowerCase().includes("quota")) ||
+                           (error.message && error.message.includes("429"));
 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            verses: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  number: { type: Type.INTEGER },
-                  text: { type: Type.STRING, description: "Arabic text of the verse with tashkeel" },
-                  translation: { type: Type.STRING, description: "Indonesian translation" },
-                },
-                required: ["number", "text", "translation"]
-              }
+      if (isQuotaError && retries < maxRetries) {
+        retries++;
+        let delay = 5000; // Default 5s fallback
+
+        // 1. Try to extract delay from 'details' object (Google RPC standard)
+        // Check both root details and nested error.details
+        const details = error.details || error.error?.details || error.response?.data?.error?.details;
+        
+        if (details && Array.isArray(details)) {
+          // Look for RetryInfo which contains retryDelay
+          const retryInfo = details.find((d: any) => d['@type']?.includes('RetryInfo') || d.retryDelay);
+          if (retryInfo && retryInfo.retryDelay) {
+            const seconds = parseFloat(retryInfo.retryDelay.replace('s', ''));
+            if (!isNaN(seconds)) {
+              delay = (seconds * 1000) + 2000; // Add 2s buffer to be safe
             }
-          },
-          required: ["verses"]
+          }
+        } 
+        
+        // 2. Fallback: Parse from error message string "Please retry in 51.53s"
+        if (delay === 5000 && error.message) {
+          const match = error.message.match(/retry in (\d+(\.\d+)?)s/);
+          if (match && match[1]) {
+            delay = (parseFloat(match[1]) * 1000) + 2000;
+          }
         }
-      }
-    });
 
-    const json = JSON.parse(response.text || '{"verses": []}');
-    
-    return {
-      meta: {
-        number: surahNumber,
-        name: surahName,
-        englishName: "", // Populated from constants in UI
-        verseCount: verseCount,
-        meaning: "" // Populated from constants in UI
-      },
-      verses: json.verses
-    };
-  } catch (error) {
-    console.error("Error fetching Surah content:", error);
-    throw error;
+        console.warn(`[Gemini Service] Quota exceeded. Retrying in ${(delay/1000).toFixed(1)}s... (Attempt ${retries}/${maxRetries})`);
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // If not a quota error or retries exhausted, throw it
+      throw error;
+    }
   }
-};
+}
 
 export const fetchTafsir = async (
   surahName: string,
@@ -89,23 +91,19 @@ export const fetchTafsir = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            text: { type: Type.STRING, description: "Detailed comprehensive explanation (Tafsir) explicitly referencing the source" },
-            keyPoints: { 
-              type: Type.ARRAY, 
-              items: { type: Type.STRING },
-              description: "List of 3-5 concise key takeaways or lessons from this verse"
-            }
-          },
-          required: ["text", "keyPoints"]
-        }
+    const response = await generateContentWithRetry(model, prompt, {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING, description: "Detailed comprehensive explanation (Tafsir) explicitly referencing the source" },
+          keyPoints: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "List of 3-5 concise key takeaways or lessons from this verse"
+          }
+        },
+        required: ["text", "keyPoints"]
       }
     });
 
@@ -152,32 +150,28 @@ export const generateThematicTafsir = async (
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            theme: { type: Type.STRING },
-            introduction: { type: Type.STRING },
-            verses: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  surahName: { type: Type.STRING },
-                  verseNumber: { type: Type.NUMBER },
-                  text: { type: Type.STRING },
-                  translation: { type: Type.STRING },
-                  relevance: { type: Type.STRING, description: "Why this verse fits the theme" }
-                }
+    const response = await generateContentWithRetry(model, prompt, {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          theme: { type: Type.STRING },
+          introduction: { type: Type.STRING },
+          verses: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                surahName: { type: Type.STRING },
+                verseNumber: { type: Type.NUMBER },
+                text: { type: Type.STRING },
+                translation: { type: Type.STRING },
+                relevance: { type: Type.STRING, description: "Why this verse fits the theme" }
               }
-            },
-            explanation: { type: Type.STRING },
-            conclusion: { type: Type.STRING }
-          }
+            }
+          },
+          explanation: { type: Type.STRING },
+          conclusion: { type: Type.STRING }
         }
       }
     });

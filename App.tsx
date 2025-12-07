@@ -8,7 +8,8 @@ import { ThematicTafsir } from './components/ThematicTafsir';
 import { TahlilView } from './components/TahlilView';
 import { RiyadhushShalihinView } from './components/RiyadhushShalihinView';
 import { SurahMeta, Verse } from './types';
-import { Search, BookOpen, LayoutGrid, LibraryBig, ScrollText, Book } from 'lucide-react';
+import { Search, BookOpen, LayoutGrid, LibraryBig, ScrollText, Book, Download, CheckCircle, Loader2 } from 'lucide-react';
+import { downloadAllSurahs } from './services/quranApiService';
 
 type AppMode = 'surah' | 'theme' | 'tahlil' | 'riyadhush';
 
@@ -17,6 +18,12 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState<SurahMeta | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
+  // Download State
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadStatus, setDownloadStatus] = useState("");
+  const [isOfflineReady, setIsOfflineReady] = useState(false);
+
   // Tafsir Modal State
   const [isTafsirOpen, setIsTafsirOpen] = useState(false);
   const [selectedVerse, setSelectedVerse] = useState<Verse | null>(null);
@@ -32,6 +39,21 @@ export default function App() {
     setIsTafsirOpen(true);
   };
 
+  const handleDownloadOffline = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadAllSurahs((progress, current) => {
+        setDownloadProgress(progress);
+        setDownloadStatus(current);
+      });
+      setIsOfflineReady(true);
+    } catch (error) {
+      alert("Gagal mengunduh data. Periksa koneksi internet Anda.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const renderContent = () => {
     switch (mode) {
       case 'theme':
@@ -44,6 +66,35 @@ export default function App() {
       default:
         return (
           <main className="max-w-4xl mx-auto px-4 -mt-10 pb-20 relative z-20 animate-in fade-in duration-500">
+            {/* Download Status Banner */}
+            {(isDownloading || isOfflineReady) && (
+              <div className="bg-white rounded-xl shadow-sm border border-emerald-100 p-4 mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isDownloading ? (
+                    <Loader2 className="animate-spin text-emerald-500" size={20} />
+                  ) : (
+                    <CheckCircle className="text-emerald-500" size={20} />
+                  )}
+                  <div>
+                    <p className="font-bold text-slate-800 text-sm">
+                      {isDownloading ? 'Mengunduh Al-Qur\'an...' : 'Siap Digunakan Offline'}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {isDownloading ? `Memproses: ${downloadStatus} (${downloadProgress}%)` : 'Semua surat telah tersimpan di perangkat.'}
+                    </p>
+                  </div>
+                </div>
+                {isDownloading && (
+                  <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-emerald-500 transition-all duration-300" 
+                      style={{ width: `${downloadProgress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredSurahs.map((surah) => (
                 <SurahCard 
@@ -93,6 +144,17 @@ export default function App() {
                     </p>
                     <p className="text-emerald-100 text-sm md:text-base font-light">Eksplorasi makna Al-Quran & Hadits dengan Kecerdasan Buatan (AI)</p>
                   </div>
+                  
+                  {mode === 'surah' && !isOfflineReady && !isDownloading && (
+                    <button 
+                      onClick={handleDownloadOffline}
+                      className="hidden md:flex flex-col items-center gap-1 text-xs text-emerald-100 hover:text-white transition-colors bg-emerald-700/30 p-2 rounded-lg"
+                      title="Download untuk akses offline"
+                    >
+                      <Download size={20} />
+                      <span>Offline</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Navigation Tabs */}
@@ -145,15 +207,26 @@ export default function App() {
 
                 {/* Conditional Search Bar for Surah Mode */}
                 {mode === 'surah' && (
-                  <div className="relative max-w-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <input 
-                      type="text" 
-                      placeholder="Cari surat (Contoh: Al-Baqarah atau 2)..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-12 pr-4 py-4 rounded-xl shadow-lg border-0 text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-emerald-500/30 outline-none"
-                    />
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <div className="flex gap-2">
+                    <div className="relative flex-1 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      <input 
+                        type="text" 
+                        placeholder="Cari surat (Contoh: Al-Baqarah atau 2)..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-12 pr-4 py-4 rounded-xl shadow-lg border-0 text-slate-800 placeholder-slate-400 focus:ring-4 focus:ring-emerald-500/30 outline-none"
+                      />
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    </div>
+                    {/* Mobile Download Button */}
+                    {!isOfflineReady && !isDownloading && (
+                      <button 
+                        onClick={handleDownloadOffline}
+                        className="md:hidden flex items-center justify-center w-14 bg-emerald-700/50 rounded-xl text-white backdrop-blur-sm"
+                      >
+                        <Download size={24} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

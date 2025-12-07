@@ -78,7 +78,8 @@ export interface Hadith {
   narrator: string;
   arabic: string;
   translation: string;
-  faidah?: string[]; // Key lessons
+  faidah?: string[]; // Key lessons (Classical)
+  modernImplementation?: string[]; // Contextual application for modern life (Mental health, socmed, etc)
 }
 
 export interface BookChapter {

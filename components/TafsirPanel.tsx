@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { TafsirSource, TafsirResult, Verse } from '../types';
 import { fetchTafsir } from '../services/geminiService';
-import { X, Loader2, Sparkles, Book, ChevronDown, Download, FileText, Share2, Check } from 'lucide-react';
+import { X, Loader2, Sparkles, Book, ChevronDown, Download, FileText, Share2, Check, AlertTriangle } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -17,11 +18,14 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
   const [loading, setLoading] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [result, setResult] = useState<TafsirResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Reset when verse changes or panel opens
   useEffect(() => {
     if (isOpen && verse) {
+      setError(null);
+      setResult(null);
       handleFetchTafsir(selectedSource);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -30,14 +34,20 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
   const handleFetchTafsir = async (source: TafsirSource) => {
     if (!verse) return;
     setLoading(true);
+    setError(null);
     setResult(null);
     setSelectedSource(source); // Update UI immediately
 
     try {
       const data = await fetchTafsir(surahName, verse.number, verse.text, source);
       setResult(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      if (error.message?.includes('quota') || error.status === 'RESOURCE_EXHAUSTED' || error.code === 429) {
+        setError("Batas kuota AI tercapai (Limit Free Tier). Mohon tunggu sekitar 1 menit sebelum mencoba lagi agar kuota pulih.");
+      } else {
+        setError("Gagal memuat tafsir. Pastikan koneksi internet Anda stabil.");
+      }
     } finally {
       setLoading(false);
     }
@@ -329,6 +339,22 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
               <div className="py-12 flex flex-col items-center justify-center text-slate-400">
                 <Loader2 className="animate-spin mb-3 text-emerald-500" size={32} />
                 <p>Sedang menelaah kitab tafsir...</p>
+                <p className="text-xs mt-1 opacity-70">(Mungkin memakan waktu jika antrian padat)</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-center">
+                <AlertTriangle className="mx-auto text-red-500 mb-3" size={32} />
+                <h3 className="text-red-800 font-semibold mb-2">Terjadi Kesalahan</h3>
+                <p className="text-red-600 text-sm mb-4">{error}</p>
+                <button 
+                  onClick={() => handleFetchTafsir(selectedSource)}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
+                  Coba Lagi
+                </button>
               </div>
             )}
 
