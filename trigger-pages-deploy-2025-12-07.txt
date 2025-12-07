@@ -1,0 +1,3 @@
+trigger pages deploy - 2025-12-07
+
+This file created to trigger GitHub Actions pages workflow.
