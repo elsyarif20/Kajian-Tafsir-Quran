@@ -8,7 +8,7 @@ const ai = new GoogleGenAI({ apiKey });
 // Helper to handle Quota limits with Retry logic
 async function generateContentWithRetry(model: string, contents: any, config: any) {
   let retries = 0;
-  const maxRetries = 3; // Increased to ensure we can handle at least one long wait
+  const maxRetries = 3;
 
   while (true) {
     try {
@@ -25,24 +25,20 @@ async function generateContentWithRetry(model: string, contents: any, config: an
 
       if (isQuotaError && retries < maxRetries) {
         retries++;
-        let delay = 5000; // Default 5s fallback
+        let delay = 5000;
 
-        // 1. Try to extract delay from 'details' object (Google RPC standard)
-        // Check both root details and nested error.details
         const details = error.details || error.error?.details || error.response?.data?.error?.details;
         
         if (details && Array.isArray(details)) {
-          // Look for RetryInfo which contains retryDelay
           const retryInfo = details.find((d: any) => d['@type']?.includes('RetryInfo') || d.retryDelay);
           if (retryInfo && retryInfo.retryDelay) {
             const seconds = parseFloat(retryInfo.retryDelay.replace('s', ''));
             if (!isNaN(seconds)) {
-              delay = (seconds * 1000) + 2000; // Add 2s buffer to be safe
+              delay = (seconds * 1000) + 2000;
             }
           }
         } 
         
-        // 2. Fallback: Parse from error message string "Please retry in 51.53s"
         if (delay === 5000 && error.message) {
           const match = error.message.match(/retry in (\d+(\.\d+)?)s/);
           if (match && match[1]) {
@@ -50,14 +46,10 @@ async function generateContentWithRetry(model: string, contents: any, config: an
           }
         }
 
-        console.warn(`[Gemini Service] Quota exceeded. Retrying in ${(delay/1000).toFixed(1)}s... (Attempt ${retries}/${maxRetries})`);
-        
-        // Wait before retrying
+        console.warn(`[Gemini Service] Quota exceeded. Retrying in ${(delay/1000).toFixed(1)}s...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      
-      // If not a quota error or retries exhausted, throw it
       throw error;
     }
   }
@@ -71,23 +63,23 @@ export const fetchTafsir = async (
 ): Promise<TafsirResult> => {
   if (!apiKey) throw new Error("API Key is missing");
 
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3-flash-preview";
   
-  // SPECIAL HANDLING FOR AL-MUNJID (Word-for-Word Analysis)
   if (source === TafsirSource.AL_MUNJID) {
     const prompt = `
-      Anda adalah ahli linguistik bahasa Arab dan leksikografi.
-      Tugas: Lakukan analisis Mufradat (kosakata) per kata untuk ayat Al-Quran berikut.
+      Anda adalah ahli linguistik bahasa Arab, mufassir, dan leksikografer.
+      Tugas: Lakukan analisis Mufradat (kamus per kata) untuk ayat Al-Quran berikut.
       Surah: ${surahName}, Ayat: ${verseNumber}
       Teks: "${verseText}"
       
-      Gaya Referensi: Kamus Al-Munjid (Luwis Ma'luf).
+      Referensi Utama: Kamus Al-Munjid (Luwis Ma'luf) dan Lisanul Arab.
       
       Instruksi:
-      1. Pecah ayat menjadi kata-kata dasar (per lafal).
-      2. Tentukan Akar Kata (Root Word / Jizr) untuk setiap kata (misal: "bismillah" -> "ism" -> "s-m-w").
-      3. Berikan arti harfiah.
-      4. Berikan definisi singkat atau wawasan linguistik berdasarkan gaya Al-Munjid (misal: bentuk jamak, fi'il madhi, atau makna etimologi).
+      1. Pecah ayat menjadi kata-kata (unit makna terkecil).
+      2. Tentukan Akar Kata (Jizr) 3 huruf untuk setiap kata.
+      3. Klasifikasikan jenis kata (Ism/Fi'il/Harf).
+      4. Berikan transliterasi dan arti harfiah.
+      5. Berikan penjelasan morfologi singkat (misal: ini adalah fi'il madhi, atau jamak taksir).
       
       Format Output JSON Only.
     `;
@@ -103,15 +95,18 @@ export const fetchTafsir = async (
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  word: { type: Type.STRING, description: "Lafal Arab spesifik dari ayat" },
-                  root: { type: Type.STRING, description: "Akar kata (Jizr) 3 huruf" },
+                  word: { type: Type.STRING },
+                  root: { type: Type.STRING },
                   transliteration: { type: Type.STRING },
-                  translation: { type: Type.STRING, description: "Arti kata per kata" },
-                  munjidDefinition: { type: Type.STRING, description: "Penjelasan linguistik/kamus singkat" }
-                }
+                  translation: { type: Type.STRING },
+                  wordType: { type: Type.STRING, enum: ["Ism (Kata Benda)", "Fi'il (Kata Kerja)", "Harf (Huruf/Partikel)"] },
+                  munjidDefinition: { type: Type.STRING },
+                  grammarNote: { type: Type.STRING }
+                },
+                required: ["word", "root", "translation", "wordType"]
               }
             },
-            generalSummary: { type: Type.STRING, description: "Ringkasan makna global ayat ini dalam 1 kalimat" }
+            generalSummary: { type: Type.STRING }
           }
         }
       });
@@ -120,8 +115,8 @@ export const fetchTafsir = async (
       
       return {
         source,
-        text: json.generalSummary || "Analisis Kosakata Al-Munjid",
-        keyPoints: [], // Not used in this view
+        text: json.generalSummary || "Analisis Kamus Per Kata",
+        keyPoints: [],
         vocabulary: json.vocabulary || []
       };
 
@@ -131,22 +126,10 @@ export const fetchTafsir = async (
     }
   }
 
-  // STANDARD TAFSIR HANDLING
   const prompt = `
-    Bertindaklah sebagai ahli tafsir Al-Quran.
-    Berikan penjelasan tafsir yang mendalam untuk:
-    Surah: ${surahName}, Ayat: ${verseNumber}
-    Bunyi Ayat: "${verseText}"
-    
-    Sumber Tafsir yang diminta: ${source}.
-    
-    Instruksi:
-    1. Jelaskan ayat ini berdasarkan perspektif dan gaya bahasa dari ${source}.
-    2. PENTING: Anda WAJIB mencantumkan nama kitab atau sumber tafsir (${source}) secara eksplisit di dalam teks penjelasan. Contoh: "Menurut Tafsir Ibn Kathir...", atau "Dalam pandangan Buya Hamka...".
-    3. Jika sumber spesifik tidak memiliki komentar langsung untuk ayat ini, sintetiskan pandangan umum dari mazhab pemikiran yang diwakili oleh sumber tersebut, namun tetap sebutkan bahwa ini adalah pandangan berdasarkan manhaj ${source}.
-    
-    Bahasa: Indonesia.
-    Format output: JSON.
+    Bertindaklah sebagai ahli tafsir Al-Quran. Berikan penjelasan tafsir mendalam untuk Surah ${surahName} Ayat ${verseNumber}.
+    Sumber: ${source}. Bahasa: Indonesia.
+    Output: JSON.
   `;
 
   try {
@@ -155,12 +138,8 @@ export const fetchTafsir = async (
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          text: { type: Type.STRING, description: "Detailed comprehensive explanation (Tafsir) explicitly referencing the source" },
-          keyPoints: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "List of 3-5 concise key takeaways or lessons from this verse"
-          }
+          text: { type: Type.STRING },
+          keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
         required: ["text", "keyPoints"]
       }
@@ -185,27 +164,12 @@ export const generateThematicTafsir = async (
 ): Promise<ThematicResult> => {
   if (!apiKey) throw new Error("API Key is missing");
 
-  const model = "gemini-2.5-flash";
+  const model = "gemini-3-flash-preview";
 
   const prompt = `
-    Anda adalah asisten studi Al-Quran yang ahli.
-    Tugas: Buatlah kajian Tafsir Tematik (Maudhu'i) tentang tema: "${theme}".
-    Batasan: Gunakan ayat-ayat dari seluruh Al-Qur'an (Surah 1 s.d. 114) yang paling relevan.
-    Sumber Rujukan: ${source}.
-    
-    Instruksi:
-    1. Pilih 3-5 ayat paling relevan dari Al-Qur'an yang membahas tema ini.
-    2. Jelaskan kaitan ayat tersebut dengan tema.
-    3. Buat sintesis tafsir yang menghubungkan ayat-ayat tersebut menjadi satu pemahaman utuh berdasarkan ${source}.
-    4. PENTING: Dalam teks penjelasan (explanation), Anda WAJIB menyebutkan secara eksplisit bahwa kajian ini merujuk pada pandangan atau kitab ${source}. Jangan lupakan atribusi ini.
-    5. Bahasa: Indonesia yang akademis namun mudah dipahami untuk ceramah.
-
-    Format JSON:
-    - theme: Judul tema
-    - introduction: Pengantar singkat tentang tema ini dalam konteks Al-Qur'an.
-    - verses: Array berisi ayat-ayat relevan (surahName, verseNumber, text (Arabic), translation, relevance).
-    - explanation: Penjelasan tafsir mendalam (paragraf panjang) yang menyebutkan sumber.
-    - conclusion: Kesimpulan utama atau pesan moral.
+    Kajian Tafsir Tematik tentang: "${theme}". Sumber: ${source}.
+    Pilih 3-5 ayat relevan, jelaskan kaitannya, dan buat kesimpulan.
+    Bahasa: Indonesia. Format: JSON.
   `;
 
   try {
@@ -225,7 +189,7 @@ export const generateThematicTafsir = async (
                 verseNumber: { type: Type.NUMBER },
                 text: { type: Type.STRING },
                 translation: { type: Type.STRING },
-                relevance: { type: Type.STRING, description: "Why this verse fits the theme" }
+                relevance: { type: Type.STRING }
               }
             }
           },

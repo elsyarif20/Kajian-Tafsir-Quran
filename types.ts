@@ -36,6 +36,8 @@ export interface VocabularyItem {
   transliteration: string;
   translation: string;
   munjidDefinition: string;
+  wordType?: "Ism (Kata Benda)" | "Fi'il (Kata Kerja)" | "Harf (Huruf/Partikel)";
+  grammarNote?: string;
 }
 
 export interface TafsirResult {
