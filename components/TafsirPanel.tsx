@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { TafsirSource, TafsirResult, Verse } from '../types';
 import { fetchTafsir } from '../services/geminiService';
-import { X, Loader2, Sparkles, Book, ChevronDown, Download, FileText, Share2, Check, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Sparkles, Book, ChevronDown, Download, FileText, Share2, Check, AlertTriangle, BookA, GraduationCap } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
@@ -59,14 +59,23 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
     if (!result || !verse) return;
 
     const shareTitle = `Tafsir ${surahName} Ayat ${verse.number}`;
-    const shareText = `*${attributionText}*\n\n` +
-      `*${shareTitle}*\n\n` +
-      `${verse.text}\n` +
-      `_"${verse.translation}"_\n\n` +
-      `*Penjelasan (${result.source}):*\n` +
-      `${result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}\n\n` +
-      `*Hikmah:*\n` +
-      result.keyPoints.map(p => `• ${p}`).join('\n');
+    let shareText = "";
+
+    if (result.source === TafsirSource.AL_MUNJID && result.vocabulary) {
+       shareText = `*${attributionText}*\n\n` +
+         `*Analisis Kata (Kamus Al-Munjid)*\n` +
+         `QS. ${surahName}: ${verse.number}\n\n` +
+         result.vocabulary.map(v => `${v.word} (${v.root}) : ${v.translation}`).join('\n');
+    } else {
+       shareText = `*${attributionText}*\n\n` +
+        `*${shareTitle}*\n\n` +
+        `${verse.text}\n` +
+        `_"${verse.translation}"_\n\n` +
+        `*Penjelasan (${result.source}):*\n` +
+        `${result.text.substring(0, 500)}${result.text.length > 500 ? '...' : ''}\n\n` +
+        `*Hikmah:*\n` +
+        result.keyPoints.map(p => `• ${p}`).join('\n');
+    }
 
     if (navigator.share) {
       try {
@@ -89,6 +98,57 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
     if (!result || !verse) return;
 
     // Create an HTML structure compatible with Word
+    let contentBody = "";
+
+    if (result.source === TafsirSource.AL_MUNJID && result.vocabulary) {
+      contentBody = `
+        <div class="section">
+          <div class="section-title">Analisis Kosakata (Kamus Al-Munjid)</div>
+          <p><strong>Ringkasan:</strong> ${result.text}</p>
+          <table style="width:100%; border-collapse: collapse; margin-top: 15px;">
+            <thead>
+              <tr style="background-color: #ecfdf5;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Lafal</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Akar Kata</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Arti</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Analisis Munjid</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${result.vocabulary.map(v => `
+                <tr>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-size: 16pt; font-family: 'Traditional Arabic'; text-align: right;">${v.word}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold; color: #047857;">${v.root}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${v.translation}</td>
+                  <td style="border: 1px solid #ddd; padding: 8px;">${v.munjidDefinition}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      contentBody = `
+        <div class="section">
+          <div class="section-title">Penjelasan Tafsir</div>
+          <div class="source-badge">Sumber: ${result.source}</div>
+          <div class="content-text">
+            ${result.text.split('\n').map(p => `<p>${p}</p>`).join('')}
+          </div>
+        </div>
+        ${result.keyPoints.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Poin Hikmah (Untuk Disampaikan)</div>
+          <div class="hikmah-list">
+            <ul>
+              ${result.keyPoints.map(point => `<li>${point}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+        ` : ''}
+      `;
+    }
+
     const content = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
@@ -127,24 +187,7 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
           <p style="font-size: 10pt; color: #666;">(${surahName}: ${verse.number})</p>
         </div>
 
-        <div class="section">
-          <div class="section-title">Penjelasan Tafsir</div>
-          <div class="source-badge">Sumber: ${result.source}</div>
-          <div class="content-text">
-            ${result.text.split('\n').map(p => `<p>${p}</p>`).join('')}
-          </div>
-        </div>
-
-        ${result.keyPoints.length > 0 ? `
-        <div class="section">
-          <div class="section-title">Poin Hikmah (Untuk Disampaikan)</div>
-          <div class="hikmah-list">
-            <ul>
-              ${result.keyPoints.map(point => `<li>${point}</li>`).join('')}
-            </ul>
-          </div>
-        </div>
-        ` : ''}
+        ${contentBody}
 
         <div class="timestamp">
           Dokumen ini dihasilkan oleh AI berdasarkan referensi kitab tafsir.<br>
@@ -186,23 +229,33 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
     container.style.padding = '20mm';
     container.style.boxSizing = 'border-box';
     
-    container.innerHTML = `
-      <div style="font-family: 'Inter', sans-serif; color: #333;">
-        <div style="text-align: center; border-bottom: 2px solid #047857; padding-bottom: 15px; margin-bottom: 20px;">
-          <h1 style="color: #047857; font-size: 18px; margin: 0 0 10px 0; font-weight: 800; text-transform: uppercase; line-height: 1.4;">${attributionText}</h1>
-          <h2 style="color: #333; font-size: 16px; margin: 0; font-weight: bold;">Materi Tafsir & Ceramah</h2>
-          <p style="color: #666; margin: 5px 0 0 0;">Kajian Tafsir Al-Qur'an Global</p>
-        </div>
+    let contentHTML = "";
 
+    if (result.source === TafsirSource.AL_MUNJID && result.vocabulary) {
+      contentHTML = `
         <div style="margin-bottom: 25px;">
-          <h2 style="color: #065f46; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold;">Ayat Pilihan</h2>
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; text-align: right; margin: 10px 0; border: 1px solid #e2e8f0;">
-            <p style="font-family: 'Amiri', serif; font-size: 32px; line-height: 2; margin: 0; direction: rtl; color: black;">${verse.text}</p>
+          <h2 style="color: #065f46; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold;">Analisis Mufradat (Kamus Al-Munjid)</h2>
+          <div style="display: grid; grid-template-columns: 1fr; gap: 15px; margin-top: 15px;">
+            ${result.vocabulary.map(v => `
+              <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; background: #fff; page-break-inside: avoid;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                   <div>
+                     <span style="background: #ecfdf5; color: #047857; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;">AKAR: ${v.root}</span>
+                     <p style="margin: 5px 0 0 0; font-weight: bold; color: #334155;">${v.transliteration}</p>
+                   </div>
+                   <p style="font-family: 'Amiri', serif; font-size: 24px; color: #000; margin: 0;">${v.word}</p>
+                </div>
+                <div style="border-top: 1px solid #f1f5f9; padding-top: 10px; margin-top: 5px;">
+                  <p style="margin: 0 0 5px 0; font-size: 14px; font-weight: 600;">${v.translation}</p>
+                  <p style="margin: 0; font-size: 12px; color: #64748b;">${v.munjidDefinition}</p>
+                </div>
+              </div>
+            `).join('')}
           </div>
-          <p style="font-style: italic; color: #475569; margin: 10px 0;">"${verse.translation}"</p>
-          <p style="font-size: 12px; color: #94a3b8;">(${surahName}: ${verse.number})</p>
         </div>
-
+      `;
+    } else {
+      contentHTML = `
         <div style="margin-bottom: 25px;">
           <h2 style="color: #065f46; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold;">Penjelasan Tafsir</h2>
           <span style="background: #ecfdf5; color: #047857; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #a7f3d0; display: inline-block; margin-bottom: 8px;">Sumber: ${result.source}</span>
@@ -221,6 +274,27 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
           </div>
         </div>
         ` : ''}
+      `;
+    }
+
+    container.innerHTML = `
+      <div style="font-family: 'Inter', sans-serif; color: #333;">
+        <div style="text-align: center; border-bottom: 2px solid #047857; padding-bottom: 15px; margin-bottom: 20px;">
+          <h1 style="color: #047857; font-size: 18px; margin: 0 0 10px 0; font-weight: 800; text-transform: uppercase; line-height: 1.4;">${attributionText}</h1>
+          <h2 style="color: #333; font-size: 16px; margin: 0; font-weight: bold;">Materi Tafsir & Ceramah</h2>
+          <p style="color: #666; margin: 5px 0 0 0;">Kajian Tafsir Al-Qur'an Global</p>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+          <h2 style="color: #065f46; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-weight: bold;">Ayat Pilihan</h2>
+          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; text-align: right; margin: 10px 0; border: 1px solid #e2e8f0;">
+            <p style="font-family: 'Amiri', serif; font-size: 32px; line-height: 2; margin: 0; direction: rtl; color: black;">${verse.text}</p>
+          </div>
+          <p style="font-style: italic; color: #475569; margin: 10px 0;">"${verse.translation}"</p>
+          <p style="font-size: 12px; color: #94a3b8;">(${surahName}: ${verse.number})</p>
+        </div>
+
+        ${contentHTML}
 
         <div style="margin-top: 40px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px;">
           <p style="font-size: 10px; color: #cbd5e1; margin: 5px 0 0 0;">
@@ -315,7 +389,7 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
             {/* Source Selection */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Pilih Sumber Tafsir
+                Pilih Sumber Tafsir / Metode
               </label>
               <div className="relative">
                 <select
@@ -338,8 +412,8 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
             {loading && (
               <div className="py-12 flex flex-col items-center justify-center text-slate-400">
                 <Loader2 className="animate-spin mb-3 text-emerald-500" size={32} />
-                <p>Sedang menelaah kitab tafsir...</p>
-                <p className="text-xs mt-1 opacity-70">(Mungkin memakan waktu jika antrian padat)</p>
+                <p>Sedang menelaah kitab...</p>
+                <p className="text-xs mt-1 opacity-70">(Mungkin memakan waktu untuk analisis per kata)</p>
               </div>
             )}
 
@@ -396,36 +470,79 @@ export const TafsirPanel: React.FC<TafsirPanelProps> = ({ isOpen, onClose, verse
                   </button>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                  <div className="bg-emerald-50/50 px-5 py-3 border-b border-emerald-100 flex items-center gap-2">
-                    <Book size={18} className="text-emerald-600" />
-                    <h3 className="font-semibold text-emerald-900">Penjelasan ({result.source})</h3>
-                  </div>
-                  <div className="p-5 prose prose-slate max-w-none">
-                    <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
-                      {result.text}
-                    </p>
-                  </div>
-                </div>
+                {/* CONDITIONAL RENDERING: VOCABULARY MODE VS TEXT MODE */}
+                {result.source === TafsirSource.AL_MUNJID && result.vocabulary ? (
+                   <div className="space-y-4">
+                     <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-center">
+                       <h3 className="font-bold text-indigo-900 flex items-center justify-center gap-2">
+                         <BookA size={20} />
+                         Kamus Al-Munjid (Analisis Per Kata)
+                       </h3>
+                       <p className="text-sm text-indigo-700/80 mt-1">{result.text}</p>
+                     </div>
 
-                {/* Key Points */}
-                {result.keyPoints.length > 0 && (
-                  <div className="bg-amber-50 rounded-xl border border-amber-100 p-5">
-                    <div className="flex items-center gap-2 mb-3 text-amber-800 font-semibold">
-                      <Sparkles size={18} />
-                      <h3>Poin Utama (Hikmah)</h3>
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {result.vocabulary.map((vocab, idx) => (
+                          <div key={idx} className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 hover:shadow-md transition-shadow relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-50 rounded-bl-full -mr-8 -mt-8 opacity-50"></div>
+                            
+                            <div className="flex justify-between items-start mb-3">
+                              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 uppercase tracking-wide">
+                                Akar: {vocab.root}
+                              </span>
+                            </div>
+
+                            <div className="text-right mb-4 border-b border-slate-50 pb-2">
+                              <p className="font-arabic text-3xl text-slate-800">{vocab.word}</p>
+                              <p className="text-xs text-slate-400 mt-1 font-mono">{vocab.transliteration}</p>
+                            </div>
+
+                            <div>
+                              <p className="font-bold text-slate-700 mb-1">{vocab.translation}</p>
+                              <p className="text-sm text-slate-500 leading-snug bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                <GraduationCap size={12} className="inline mr-1 text-slate-400"/>
+                                {vocab.munjidDefinition}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                     </div>
+                   </div>
+                ) : (
+                  // STANDARD TAFSIR VIEW
+                  <>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="bg-emerald-50/50 px-5 py-3 border-b border-emerald-100 flex items-center gap-2">
+                        <Book size={18} className="text-emerald-600" />
+                        <h3 className="font-semibold text-emerald-900">Penjelasan ({result.source})</h3>
+                      </div>
+                      <div className="p-5 prose prose-slate max-w-none">
+                        <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+                          {result.text}
+                        </p>
+                      </div>
                     </div>
-                    <ul className="space-y-2">
-                      {result.keyPoints.map((point, idx) => (
-                        <li key={idx} className="flex gap-3 text-amber-900/80 text-sm">
-                          <span className="flex-shrink-0 w-5 h-5 bg-amber-200/50 rounded-full flex items-center justify-center text-xs font-bold text-amber-800">
-                            {idx + 1}
-                          </span>
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+
+                    {/* Key Points */}
+                    {result.keyPoints.length > 0 && (
+                      <div className="bg-amber-50 rounded-xl border border-amber-100 p-5">
+                        <div className="flex items-center gap-2 mb-3 text-amber-800 font-semibold">
+                          <Sparkles size={18} />
+                          <h3>Poin Utama (Hikmah)</h3>
+                        </div>
+                        <ul className="space-y-2">
+                          {result.keyPoints.map((point, idx) => (
+                            <li key={idx} className="flex gap-3 text-amber-900/80 text-sm">
+                              <span className="flex-shrink-0 w-5 h-5 bg-amber-200/50 rounded-full flex items-center justify-center text-xs font-bold text-amber-800">
+                                {idx + 1}
+                              </span>
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

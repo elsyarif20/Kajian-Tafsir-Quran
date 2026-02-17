@@ -26,13 +26,23 @@ export enum TafsirSource {
   QURAISH_SHIHAB = "M. Quraish Shihab (Indonesian Context)",
   HAMKA = "Buya Hamka (Tafsir Al-Azhar)",
   SAYYID_QUTB = "Fi Zilal al-Quran (Literary/Social)",
-  MAARIFUL_QURAN = "Ma'ariful Quran (Mufti Shafi Usmani)"
+  MAARIFUL_QURAN = "Ma'ariful Quran (Mufti Shafi Usmani)",
+  AL_MUNJID = "Kamus Al-Munjid (Analisis Per Kata/Mufradat)"
+}
+
+export interface VocabularyItem {
+  word: string;
+  root: string;
+  transliteration: string;
+  translation: string;
+  munjidDefinition: string;
 }
 
 export interface TafsirResult {
   source: string;
   text: string;
   keyPoints: string[];
+  vocabulary?: VocabularyItem[]; // Optional field for Word-for-Word mode
 }
 
 export interface ThematicVerseReference {

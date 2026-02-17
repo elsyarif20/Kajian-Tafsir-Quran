@@ -73,6 +73,65 @@ export const fetchTafsir = async (
 
   const model = "gemini-2.5-flash";
   
+  // SPECIAL HANDLING FOR AL-MUNJID (Word-for-Word Analysis)
+  if (source === TafsirSource.AL_MUNJID) {
+    const prompt = `
+      Anda adalah ahli linguistik bahasa Arab dan leksikografi.
+      Tugas: Lakukan analisis Mufradat (kosakata) per kata untuk ayat Al-Quran berikut.
+      Surah: ${surahName}, Ayat: ${verseNumber}
+      Teks: "${verseText}"
+      
+      Gaya Referensi: Kamus Al-Munjid (Luwis Ma'luf).
+      
+      Instruksi:
+      1. Pecah ayat menjadi kata-kata dasar (per lafal).
+      2. Tentukan Akar Kata (Root Word / Jizr) untuk setiap kata (misal: "bismillah" -> "ism" -> "s-m-w").
+      3. Berikan arti harfiah.
+      4. Berikan definisi singkat atau wawasan linguistik berdasarkan gaya Al-Munjid (misal: bentuk jamak, fi'il madhi, atau makna etimologi).
+      
+      Format Output JSON Only.
+    `;
+
+    try {
+      const response = await generateContentWithRetry(model, prompt, {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            vocabulary: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  word: { type: Type.STRING, description: "Lafal Arab spesifik dari ayat" },
+                  root: { type: Type.STRING, description: "Akar kata (Jizr) 3 huruf" },
+                  transliteration: { type: Type.STRING },
+                  translation: { type: Type.STRING, description: "Arti kata per kata" },
+                  munjidDefinition: { type: Type.STRING, description: "Penjelasan linguistik/kamus singkat" }
+                }
+              }
+            },
+            generalSummary: { type: Type.STRING, description: "Ringkasan makna global ayat ini dalam 1 kalimat" }
+          }
+        }
+      });
+
+      const json = JSON.parse(response.text || '{}');
+      
+      return {
+        source,
+        text: json.generalSummary || "Analisis Kosakata Al-Munjid",
+        keyPoints: [], // Not used in this view
+        vocabulary: json.vocabulary || []
+      };
+
+    } catch (error) {
+      console.error("Error fetching Vocabulary:", error);
+      throw error;
+    }
+  }
+
+  // STANDARD TAFSIR HANDLING
   const prompt = `
     Bertindaklah sebagai ahli tafsir Al-Quran.
     Berikan penjelasan tafsir yang mendalam untuk:
